@@ -55,6 +55,7 @@
         update_cache: yes
         state: present
       loop: "{{ packages_Ubuntu }}"
+      loop: "{{ packages_CentOs }}"
       tags:
         - nagios
     - name: Download the source to temp folder
