@@ -28,7 +28,6 @@
     nagios_plugin_location: /tmp/nagios-plugins.tar.gz
   tasks:
     - name: install packages
-      when: ubuntu
       package:
         name: "{{ item }}"
         update_cache: yes
