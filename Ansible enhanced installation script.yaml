@@ -4,7 +4,7 @@
   vars:
     nagios_version: '4.4.5'
     nagios_plugin_version: '2.2.1'
-    Instal_packages:
+    packages_Ubuntu:
       - autoconf 
       - gcc 
       - libc6 
@@ -24,6 +24,28 @@
       - snmp 
       - libnet-snmp-perl 
       - gettext
+    packages_CentOs:
+      - gcc 
+      - glibc 
+      - glibc-common 
+      - unzip 
+      - httpd 
+      - php 
+      - gd-devel 
+      - perl 
+      - postfix  
+      - wget
+      - gd
+      - python-passlib
+      - make
+      - gettext
+      - automake
+      - openssl-devel 
+      - autoconf 
+      - net-snmp 
+      - net-snmp-utils 
+      - epel-release
+      - perl-Net-SNMP  
     nagios_code_location: /tmp/nagioscore.tar.gz
     nagios_plugin_location: /tmp/nagios-plugins.tar.gz
   tasks:
@@ -32,7 +54,7 @@
         name: "{{ item }}"
         update_cache: yes
         state: present
-      loop: "{{ Install_packages }}"
+      loop: "{{ packages_Ubuntu }}"
       tags:
         - nagios
     - name: Download the source to temp folder
@@ -47,39 +69,112 @@
         dest: "/tmp/"
       tags:
         - nagios
-    - name: Compile Code
+    - name: Compile Code For Ubuntu
       shell:
         cmd: sudo ./configure --with-httpd-conf=/etc/apache2/sites-enabled > configure.log && sudo make all > makeoutput.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
       tags:
         - nagios
-    - name: Create User and Group
+    - name: compile code on centos
+      shell: 
+        cmd: ./configure && make all > makeoutput.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      when: ansible_os_family == "RedHat"
+    - name: creating users & groups for ubuntu 
       shell:
         cmd: sudo make install-groups-users > installgroups.log && sudo usermod -a -G nagios www-data > usermod.log
-      tags:
-        - nagios
-    - name: Install Binaries
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      when: ansible_os_family == "Debian"
+    - name: creating users & groups for centos
+      shell:
+        cmd: sudo make install-groups-users > installgroups.log && usermod -a -G nagios apache > usermod.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      when: ansible_os_family == "RedHat"
+    - name: Install Binaries on Ubuntu
       shell:
         cmd: sudo make install > makeinstall.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
       tags:
         - nagios
-    - name: Install Service / Daemon
+      when: ansible_os_family == "Debian"
+    - name: Install Binaries on centos
+      shell:
+        cmd: make install > makeinstall.log
+      args:
+        chdir: /tmp/nagioscore-nagios-4.4.5
+      when: ansible_os_family == "RedHat"
+      tags:
+        - nagios
+    - name: Install Service / Daemon for Ubuntu
       shell:
         cmd: sudo make install-daemoninit > daemoninit.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
       tags:
         - nagios
+      when: ansible_os_family == "Debian"
+    - name: Install Service / Daemon for centos
+      shell:
+        cmd: make install-daemoninit > daemoninit.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      when: ansible_os_family == "RedHat"
+    - name: Install Command Mode for Ubuntu
+      shell:
+        cmd: sudo make install-commandmode > commandmode.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      tags:
+        - nagios
+      when: ansible_os_family == "Debian"
+    - name: Install Command mode on centos 
+      shell:
+        cmd: make install-commandmode > commandmode.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      when: ansible_os_family == "RedHat"
     - name: Install Command Mode
       shell:
         cmd: sudo make install-commandmode > commandmode.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
       tags:
         - nagios
-    - name: Install Configuration Files
+    - name: Install Configuration Files for Ubuntu
       shell:
         cmd: sudo make install-config > config.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
       tags:
         - nagios
-    - name: Install Apache Config Files
+      when: ansible_os_family == "Debian"
+    - name: Install Configuration Files on centos
+      shell:
+        cmd: sudo make install-config > config.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      tags:
+        - nagios
+      when: ansible_os_family == "RedHat"
+    - name: Install Apache Config Files for Ubuntu
       shell:
         cmd: sudo make install-webconf > webconf.log && sudo a2enmod rewrite > a2enmodrewrite.log && sudo a2enmod cgi > cgi.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      tags:
+        - nagios
+      when: ansible_os_family == "Debian"
+    - name: Install Apache Configuration Files on centos
+      shell:
+        cmd: make install-webconf > webconf.log
+      args:
+        chdir: "/tmp/nagioscore-nagios-{{ nagios_version }}/"
+      when: ansible_os_family == "RedHat"
       tags:
         - nagios
     - name: Install latest passlib with pip
@@ -100,6 +195,13 @@
         enabled: true
       tags:
         - nagios
+      when: ansible_os_family == "Debian"
+    - name: start httpd
+      service:
+        name: httpd
+        state: started
+        enabled: true
+      when: ansible_os_family == "RedHat"
     - name: start nagios
       service:
         name: nagios
@@ -119,23 +221,34 @@
         dest: "/tmp/"
       tags:
         - plugin
-    - name: Compile + Install
+    - name: Compile + Install for Ubuntu
       shell:
         cmd: sudo ./tools/setup > setup.log && sudo ./configure > configue.log && sudo make > make.log && sudo make install
       args:
         chdir: "/tmp/nagios-plugins-release-{{ nagios_plugin_version }}/"
       tags:
         - plugin
-    - name: restart nagios
-      service:
-        name: nagios
-        state: restarted
-      tags:
-        - plugin
-    - name: restart apache
+      when: ansible_os_family == "Debian"
+    - name: Compile + Install for centos
+      shell:
+        cmd: ./tools/setup > setup.log && ./configure > configure.log && make > make.log && make install
+      args:
+        chdir: /tmp/nagios-plugins-release-2.2.1
+      when: ansible_os_family == "RedHat"
+    - name: start apache
       service:
         name: apache2
-        state: restarted
-      tags:
-        - plugin
-   
+        state: started
+        enabled: true
+      when: ansible_os_family == "Debian"
+    - name: start httpd
+      service:
+        name: httpd
+        state: started
+        enabled: true
+      when: ansible_os_family == "RedHat"
+    - name: start nagios
+      service:
+        name: nagios
+        state: started
+        enabled: true
